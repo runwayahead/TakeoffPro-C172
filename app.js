@@ -1,142 +1,577 @@
-const tabs = document.querySelectorAll(".tab");
-const pages = document.querySelectorAll(".page");
+/*
+========================================================
 
-tabs.forEach(tab => {
+TakeoffPro V2.2 Stable
 
-    tab.addEventListener("click", () => {
+app.js
 
-        tabs.forEach(t => t.classList.remove("active"));
-        pages.forEach(p => p.classList.remove("active"));
+Application Controller
 
-        tab.classList.add("active");
+========================================================
+*/
 
-        const page = document.getElementById(tab.dataset.page);
+"use strict";
 
-        page.classList.add("active");
+/*
+========================================================
+Version
+========================================================
+*/
 
-    });
+const APP_VERSION={
 
-});
+    app:"TakeoffPro",
 
-const weightSelect = document.getElementById("weight");
+    version:"2.2 Stable",
 
-const altitudeSlider = document.getElementById("altitude");
-const temperatureSlider = document.getElementById("temperature");
-const factorSlider = document.getElementById("factor");
+    aircraft:"C172 TAE125-02-114"
 
-const altitudeValue = document.getElementById("altitudeValue");
-const temperatureValue = document.getElementById("temperatureValue");
-const factorValue = document.getElementById("factorValue");
+};
 
-const groundOutput = document.getElementById("groundRoll");
-const obstacleOutput = document.getElementById("obstacleRoll");
-const factorOutput = document.getElementById("factorResult");
 
-function updateLabels() {
+/*
+========================================================
+DOM
+========================================================
+*/
 
-    altitudeValue.textContent =
-        altitudeSlider.value + " ft";
+const APP={
 
-    temperatureValue.textContent =
-        temperatureSlider.value + " °C";
+    weight:null,
 
-    factorValue.textContent =
-        factorSlider.value + " %";
+    temperature:null,
+
+    qnh:null,
+
+    elevation:null,
+
+    runwayHeading:null,
+
+    runwayLength:null,
+
+    windDirection:null,
+
+    windSpeed:null,
+
+    slope:null,
+
+    surface:null,
+
+    procedure:null
+
+};
+
+
+
+/*
+========================================================
+Cache DOM
+========================================================
+*/
+
+function cacheDOM(){
+
+    APP.weight=document.getElementById("weight");
+
+    APP.temperature=document.getElementById("temperature");
+
+    APP.qnh=document.getElementById("qnh");
+
+    APP.elevation=document.getElementById("elevation");
+
+    APP.runwayHeading=document.getElementById("runwayHeading");
+
+    APP.runwayLength=document.getElementById("runwayLength");
+
+    APP.windDirection=document.getElementById("windDirection");
+
+    APP.windSpeed=document.getElementById("windSpeed");
+
+    APP.slope=document.getElementById("slope");
+
+    APP.surface=document.getElementById("surface");
+
+    APP.procedure=document.getElementById("procedure");
 
 }
 
-altitudeSlider.addEventListener(
-    "input",
-    updateLabels
-);
 
-temperatureSlider.addEventListener(
-    "input",
-    updateLabels
-);
 
-factorSlider.addEventListener(
-    "input",
-    updateLabels
-);
+/*
+========================================================
+Read Input
+========================================================
+*/
 
-updateLabels();
+function getInput(){
 
-function performCalculation() {
+    return{
 
-    const result = calculateTakeoff(
+        weight:Number(APP.weight.value),
 
-        Number(weightSelect.value),
+        temperature:Number(APP.temperature.value),
 
-        Number(altitudeSlider.value),
+        qnh:Number(APP.qnh.value),
 
-        Number(temperatureSlider.value),
+        elevation:Number(APP.elevation.value),
 
-        Number(factorSlider.value)
+        runwayHeading:Number(APP.runwayHeading.value),
 
-    );
+        runwayLength:Number(APP.runwayLength.value),
 
-    groundOutput.textContent =
-        result.ground + " m";
+        windDirection:Number(APP.windDirection.value),
 
-    obstacleOutput.textContent =
-        result.obstacle + " m";
+        windSpeed:Number(APP.windSpeed.value),
 
-    factorOutput.textContent =
-        factorSlider.value + " %";
+        slope:Number(APP.slope.value),
+
+        surface:APP.surface.value,
+
+        procedure:APP.procedure.value
+
+    };
 
 }
 
-document
-.getElementById("calculate")
-.addEventListener(
 
-    "click",
 
-    () => {
+/*
+========================================================
+Validation
+========================================================
+*/
 
-        performCalculation();
+function validateInput(){
 
-        tabs.forEach(t =>
-            t.classList.remove("active")
-        );
+    const input=getInput();
 
-        pages.forEach(p =>
-            p.classList.remove("active")
-        );
+    if(input.weight>1111){
 
-        document
-            .querySelector(
-                '[data-page="results"]'
-            )
-            .classList.add("active");
+        APP.weight.classList.add("error");
 
-        document
-            .getElementById("results")
-            .classList.add("active");
+        return false;
 
     }
 
-);
+    APP.weight.classList.remove("error");
 
-weightSelect.addEventListener(
-    "change",
-    performCalculation
-);
+    return true;
 
-altitudeSlider.addEventListener(
-    "change",
-    performCalculation
-);
+}
 
-temperatureSlider.addEventListener(
-    "change",
-    performCalculation
-);
 
-factorSlider.addEventListener(
-    "change",
-    performCalculation
-);
 
-performCalculation();
+/*
+========================================================
+Refresh
+========================================================
+*/
+
+function refreshApp(){
+
+    if(!validateInput()){
+
+        return;
+
+    }
+
+    updateAtmosphere();
+
+    updateWind();
+
+    updatePerformance();
+
+}
+/*
+========================================================
+Event Registration
+========================================================
+*/
+
+function registerEvents(){
+
+    const elements=[
+
+        APP.weight,
+        APP.temperature,
+        APP.qnh,
+        APP.elevation,
+
+        APP.windDirection,
+        APP.windSpeed,
+
+        APP.runwayHeading,
+        APP.runwayLength,
+
+        APP.slope,
+
+        APP.surface,
+        APP.procedure
+
+    ];
+
+    elements.forEach(function(element){
+
+        if(!element){
+
+            return;
+
+        }
+
+        element.addEventListener(
+
+            "input",
+
+            refreshApp
+
+        );
+
+        element.addEventListener(
+
+            "change",
+
+            refreshApp
+
+        );
+
+    });
+
+}
+
+
+
+/*
+========================================================
+Display Mirror
+
+Safety Card
+
+========================================================
+*/
+
+function updateDisplayValues(){
+
+    const finalValue=document.getElementById(
+
+        "finalDistance"
+
+    );
+
+    const runwayLength=document.getElementById(
+
+        "runwayLength"
+
+    );
+
+    const finalDisplay=document.getElementById(
+
+        "finalRequiredDisplay"
+
+    );
+
+    const runwayDisplay=document.getElementById(
+
+        "runwayAvailableDisplay"
+
+    );
+
+    if(
+
+        finalValue&&
+
+        finalDisplay
+
+    ){
+
+        finalDisplay.innerHTML=
+
+            finalValue.innerHTML.replace(
+
+                " m",
+
+                ""
+
+            );
+
+    }
+
+    if(
+
+        runwayLength&&
+
+        runwayDisplay
+
+    ){
+
+        runwayDisplay.innerHTML=
+
+            runwayLength.value;
+
+    }
+
+}
+
+
+
+/*
+========================================================
+Status
+
+========================================================
+*/
+
+function updateStatus(){
+
+    const finalDistance=
+
+        Number(
+
+            document.getElementById(
+
+                "finalDistance"
+
+            ).innerHTML.replace(
+
+                " m",
+
+                ""
+
+            )
+
+        );
+
+    const runwayLength=
+
+        Number(
+
+            APP.runwayLength.value
+
+        );
+
+    const badge=document.querySelector(
+
+        ".statusBadge"
+
+    );
+
+    if(!badge){
+
+        return;
+
+    }
+
+    const reserve=
+
+        runwayLength-finalDistance;
+
+    badge.classList.remove(
+
+        "safe",
+
+        "caution",
+
+        "danger"
+
+    );
+
+    if(reserve>=300){
+
+        badge.classList.add(
+
+            "safe"
+
+        );
+
+        badge.innerHTML="SAFE";
+
+        return;
+
+    }
+
+    if(reserve>=150){
+
+        badge.classList.add(
+
+            "caution"
+
+        );
+
+        badge.innerHTML="CAUTION";
+
+        return;
+
+    }
+
+    badge.classList.add(
+
+        "danger"
+
+    );
+
+    badge.innerHTML=
+
+        "NOT<br>RECOMMENDED";
+
+}
+
+
+
+/*
+========================================================
+Complete Refresh
+
+========================================================
+*/
+
+function updateApplication(){
+
+    refreshApp();
+
+    updateDisplayValues();
+
+    updateStatus();
+
+}
+/*
+========================================================
+Reset
+
+========================================================
+*/
+
+function resetApplication(){
+
+    APP.weight.value=1111;
+
+    APP.temperature.value=15;
+
+    APP.qnh.value=1013;
+
+    APP.elevation.value=0;
+
+    APP.windDirection.value=0;
+
+    APP.windSpeed.value=0;
+
+    APP.runwayHeading.value=0;
+
+    APP.runwayLength.value=800;
+
+    APP.slope.value=0;
+
+    APP.surface.value="asphalt";
+
+    APP.procedure.value="normal";
+
+    updateApplication();
+
+}
+
+
+
+/*
+========================================================
+Live Update
+
+========================================================
+*/
+
+function updateLiveValues(){
+
+    updateDisplayValues();
+
+    updateStatus();
+
+}
+
+
+
+/*
+========================================================
+Calculation Trigger
+
+========================================================
+*/
+
+function calculateTakeoff(){
+
+    if(!validateInput()){
+
+        setStatus(
+
+            "AFM LIMIT<br>MTOW 1111 kg",
+
+            "danger"
+
+        );
+
+        return;
+
+    }
+
+    /*
+    performance.js übernimmt:
+
+    updateAtmosphere()
+
+    updateWind()
+
+    updatePerformance()
+
+    */
+
+    updatePerformance();
+
+    updateLiveValues();
+
+}
+
+
+
+/*
+========================================================
+Initialisation
+
+========================================================
+*/
+
+function initialiseApplication(){
+
+    cacheDOM();
+
+    registerEvents();
+
+    calculateTakeoff();
+
+}
+
+
+
+/*
+========================================================
+Public API
+
+========================================================
+*/
+
+window.TakeoffPro={
+
+    refresh:function(){
+
+        calculateTakeoff();
+
+    },
+
+    reset:function(){
+
+        resetApplication();
+
+    },
+
+    version:function(){
+
+        return APP_VERSION;
+
+    }
+
+};
