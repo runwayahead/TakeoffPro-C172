@@ -1,35 +1,16 @@
 /*
 ========================================================
 
-TakeoffPro V2.2 Stable
+TakeoffPro V2.3 Stable
 
 performance.js
 
-C172 TAE125-02-114
-
-AFM based
-
-AFM tables
-
-1111 kg
-1134 kg
-1157 kg
-
-Pilot MTOW
-
-1111 kg
-
-Weight <1111 kg
-
-linear extrapolation
-
-Density Altitude
-
-minimum 0 ft
+AFM Performance Engine
 
 ========================================================
 */
 
+"use strict";
 
 /*
 ========================================================
@@ -39,33 +20,11 @@ Limits
 
 const PERFORMANCE_LIMITS={
 
-    /*
-    Pilot limitation
-    */
-
     maxTakeoffWeight:1111,
 
-    /*
-    AFM tables
-
-    used internally
-    */
-
-    afmMinWeight:1111,
-
-    afmMaxWeight:1157,
-
-    minPressureAltitude:0,
-
-    maxPressureAltitude:10000,
-
-    minTemperature:-20,
-
-    maxTemperature:50
+    minimumDensityAltitude:0
 
 };
-
-
 
 /*
 ========================================================
@@ -79,69 +38,49 @@ function roundMeter(value){
 
 }
 
+function applyCorrection(
 
-function applyPercent(value,percent){
+    distance,
 
-    return value*(1+(percent/100));
+    percent
 
-}
+){
 
+    return distance*
 
-function reservePercent(runway,required){
+        (
 
-    if(runway<=0){
+            1+
 
-        return 0;
+            percent/100
 
-    }
-
-    return ((runway-required)/runway)*100;
-
-}
-
-
-
-/*
-========================================================
-Weight
-
-returns entered weight
-
-Interpolation is handled later
-
-========================================================
-*/
-
-function getAFMWeight(weight){
-
-    return Number(weight);
+        );
 
 }
 
+function calculateRemaining(
 
+    runway,
+
+    required
+
+){
+
+    return runway-required;
+
+}
 
 /*
 ========================================================
 Validation
-
-Maximum Takeoff Weight
-
-1111 kg
-
 ========================================================
 */
 
-function validateAFM(
+function validateWeight(
 
-    weight,
-
-    pressureAltitude,
-
-    temperature
+    weight
 
 ){
-
-    let message=[];
 
     if(
 
@@ -151,136 +90,700 @@ function validateAFM(
 
     ){
 
-        message.push(
+        return{
+
+            valid:false,
+
+            message:
 
             "Maximum Takeoff Weight exceeded (1111 kg)"
 
-        );
-
-    }
-
-    if(
-
-        pressureAltitude<
-
-        PERFORMANCE_LIMITS.minPressureAltitude
-
-    ){
-
-        message.push(
-
-            "Pressure Altitude below AFM range"
-
-        );
-
-    }
-
-    if(
-
-        pressureAltitude>
-
-        PERFORMANCE_LIMITS.maxPressureAltitude
-
-    ){
-
-        message.push(
-
-            "Pressure Altitude above AFM range"
-
-        );
-
-    }
-
-    if(
-
-        temperature<
-
-        PERFORMANCE_LIMITS.minTemperature
-
-    ){
-
-        message.push(
-
-            "Temperature below AFM range"
-
-        );
-
-    }
-
-    if(
-
-        temperature>
-
-        PERFORMANCE_LIMITS.maxTemperature
-
-    ){
-
-        message.push(
-
-            "Temperature above AFM range"
-
-        );
+        };
 
     }
 
     return{
 
-        valid:
+        valid:true,
 
-            message.length===0,
+        message:""
 
-        message:
+    };
 
-            message.join("<br>")
+}
+
+/*
+========================================================
+Density Altitude
+
+never below zero
+
+========================================================
+*/
+
+function normalizeDensityAltitude(
+
+    densityAltitude
+
+){
+
+    return Math.max(
+
+        PERFORMANCE_LIMITS.minimumDensityAltitude,
+
+        densityAltitude
+
+    );
+
+}
+
+/*
+========================================================
+AFM Calculation
+
+========================================================
+*/
+
+function calculateAFM(
+
+    weight,
+
+    densityAltitude,
+
+    temperature
+
+){
+
+    densityAltitude=
+
+        normalizeDensityAltitude(
+
+            densityAltitude
+
+        );
+
+    return{
+
+        groundRoll:
+
+            interpolateWeight(
+
+                AFM.groundRoll,
+
+                weight,
+
+                densityAltitude,
+
+                temperature
+
+            ),
+
+        obstacle15m:
+
+            interpolateWeight(
+
+                AFM.obstacle15m,
+
+                weight,
+
+                densityAltitude,
+
+                temperature
+
+            )
 
     };
 
 }
 /*
 ========================================================
-AFM Performance
 
-Weight interpolation
-
-1111 kg
-1134 kg
-1157 kg
-
-Weight <1111 kg
-
-=> linear extrapolation
-
-Density Altitude <0 ft
-
-=> 0 ft
+Corrections
 
 ========================================================
 */
 
-function calculateAFMPerformance(
+function getSurfaceCorrection(surface){
 
-    inputWeight,
-    pressureAltitude,
-    temperature
+    switch(surface){
+
+        case "grass":
+
+            return 15;
+
+        case "grasswet":
+
+            return 30;
+
+        case "contaminated":
+
+            return 60;
+
+        default:
+
+            return 0;
+
+    }
+
+}
+
+
+function getProcedureCorrection(procedure){
+
+    switch(procedure){
+
+        case "short":
+
+            return 0;
+
+        default:
+
+            return 15;
+
+    }
+
+}
+
+
+function getSlopeCorrection(slope){
+
+    /*
+    uphill increases distance
+
+    downhill reduces distance
+
+    10 % per 1 % slope
+
+    */
+
+    return slope*10;
+
+}
+
+
+function getWindCorrection(
+
+    headwind,
+
+    tailwind
 
 ){
 
+    if(headwind>0){
+
+        return -(headwind*3);
+
+    }
+
+    if(tailwind>0){
+
+        return tailwind*5;
+
+    }
+
+    return 0;
+
+}
+
+
+
+/*
+========================================================
+
+Final Required Distance
+
+========================================================
+*/
+
+function calculateFinalPerformance(
+
+    afm,
+
+    configuration
+
+){
+
+    let required=
+
+        afm.obstacle15m;
+
+    required=
+
+        applyCorrection(
+
+            required,
+
+            getSurfaceCorrection(
+
+                configuration.surface
+
+            )
+
+        );
+
+    required=
+
+        applyCorrection(
+
+            required,
+
+            getProcedureCorrection(
+
+                configuration.procedure
+
+            )
+
+        );
+
+    required=
+
+        applyCorrection(
+
+            required,
+
+            getSlopeCorrection(
+
+                configuration.slope
+
+            )
+
+        );
+
+    required=
+
+        applyCorrection(
+
+            required,
+
+            getWindCorrection(
+
+                configuration.headwind,
+
+                configuration.tailwind
+
+            )
+
+        );
+
+    return{
+
+        groundRoll:
+
+            roundMeter(
+
+                afm.groundRoll
+
+            ),
+
+        obstacle15m:
+
+            roundMeter(
+
+                afm.obstacle15m
+
+            ),
+
+        finalRequired:
+
+            roundMeter(
+
+                required
+
+            )
+
+    };
+
+}
+
+
+
+/*
+========================================================
+
+Remaining Runway
+
+========================================================
+*/
+
+function calculateSafety(
+
+    runwayLength,
+
+    finalRequired
+
+){
+
+    const remaining=
+
+        calculateRemaining(
+
+            runwayLength,
+
+            finalRequired
+
+        );
+
+    let status="SAFE";
+
+    if(
+
+        remaining<150
+
+    ){
+
+        status="NOT RECOMMENDED";
+
+    }
+
+    else if(
+
+        remaining<300
+
+    ){
+
+        status="CAUTION";
+
+    }
+
+    return{
+
+        remaining,
+
+        status
+
+    };
+
+}
+/*
+========================================================
+
+Output
+
+========================================================
+*/
+
+function updatePerformanceOutput(
+
+    performance,
+
+    safety
+
+){
+
+    const groundRoll=document.getElementById(
+
+        "groundRoll"
+
+    );
+
+    const takeoffDistance=document.getElementById(
+
+        "takeoffDistance"
+
+    );
+
+    const finalDistance=document.getElementById(
+
+        "finalDistance"
+
+    );
+
+    const remainingDistance=document.getElementById(
+
+        "remainingDistance"
+
+    );
+
+    const finalRequiredDisplay=document.getElementById(
+
+        "finalRequiredDisplay"
+
+    );
+
+    const runwayAvailableDisplay=document.getElementById(
+
+        "runwayAvailableDisplay"
+
+    );
+
+    const statusDisplay=document.getElementById(
+
+        "statusDisplay"
+
+    );
+
+    const headerStatusBadge=document.getElementById(
+
+        "headerStatusBadge"
+
+    );
+
+    if(groundRoll){
+
+        groundRoll.innerHTML=
+
+            performance.groundRoll+" m";
+
+    }
+
+    if(takeoffDistance){
+
+        takeoffDistance.innerHTML=
+
+            performance.obstacle15m+" m";
+
+    }
+
+    if(finalDistance){
+
+        finalDistance.innerHTML=
+
+            performance.finalRequired+" m";
+
+    }
+
+    if(finalRequiredDisplay){
+
+        finalRequiredDisplay.innerHTML=
+
+            performance.finalRequired;
+
+    }
+
+    if(remainingDistance){
+
+        remainingDistance.innerHTML=
+
+            safety.remaining;
+
+    }
+
+    if(runwayAvailableDisplay){
+
+        runwayAvailableDisplay.innerHTML=
+
+            document.getElementById(
+
+                "runwayLength"
+
+            ).value;
+
+    }
+
+    if(statusDisplay){
+
+        statusDisplay.innerHTML=
+
+            safety.status;
+
+    }
+
+    if(headerStatusBadge){
+
+        headerStatusBadge.innerHTML=
+
+            safety.status;
+
+    }
+
+}
+
+
+
+/*
+========================================================
+
+Calculation Tree
+
+========================================================
+*/
+
+function updateCalculationTree(
+
+    afm,
+
+    performance,
+
+    safety
+
+){
+
+    const tree=document.getElementById(
+
+        "calculationTree"
+
+    );
+
+    if(!tree){
+
+        return;
+
+    }
+
+    tree.innerHTML=
+
+        ""
+
+        +"AFM Ground Roll: "
+
+        +performance.groundRoll
+
+        +" m<br>"
+
+        +"AFM 15 m: "
+
+        +performance.obstacle15m
+
+        +" m<br>"
+
+        +"Final Required: "
+
+        +performance.finalRequired
+
+        +" m<br>"
+
+        +"Remaining: "
+
+        +safety.remaining
+
+        +" m<br>"
+
+        +"Status: "
+
+        +safety.status;
+
+}
+
+
+
+/*
+========================================================
+
+AFM LIMIT
+
+========================================================
+*/
+
+function showAFMLimit(
+
+    message
+
+){
+
+    document.getElementById(
+
+        "groundRoll"
+
+    ).innerHTML="---";
+
+    document.getElementById(
+
+        "takeoffDistance"
+
+    ).innerHTML="---";
+
+    document.getElementById(
+
+        "finalDistance"
+
+    ).innerHTML="AFM LIMIT";
+
+    document.getElementById(
+
+        "remainingDistance"
+
+    ).innerHTML="---";
+
+    document.getElementById(
+
+        "statusDisplay"
+
+    ).innerHTML="AFM LIMIT";
+
+    document.getElementById(
+
+        "headerStatusBadge"
+
+    ).innerHTML="AFM LIMIT";
+
+    document.getElementById(
+
+        "calculationTree"
+
+    ).innerHTML=message;
+
+}
+/*
+========================================================
+
+Main Update
+
+========================================================
+*/
+
+function updatePerformance(){
+
     /*
     ----------------------------------------------------
-    AFM minimum
+    Input
+    ----------------------------------------------------
+    */
 
+    const weight=Number(
+
+        document.getElementById(
+
+            "weight"
+
+        ).value
+
+    );
+
+    const temperature=Number(
+
+        document.getElementById(
+
+            "temperature"
+
+        ).value
+
+    );
+
+    const runwayLength=Number(
+
+        document.getElementById(
+
+            "runwayLength"
+
+        ).value
+
+    );
+
+    /*
+    ----------------------------------------------------
     Density Altitude
+
+    atmosphere.js returns:
+
+    {
+        pressureAltitude,
+        densityAltitude
+    }
 
     ----------------------------------------------------
     */
 
-    pressureAltitude=Math.max(
+    const atmosphere=
 
-        0,
+        updateAtmosphere();
 
-        pressureAltitude
+    const densityAltitude=
 
-    );
+        normalizeDensityAltitude(
+
+            atmosphere.densityAltitude
+
+        );
 
     /*
     ----------------------------------------------------
@@ -291,50 +794,42 @@ function calculateAFMPerformance(
 
     const validation=
 
-        validateAFM(
+        validateWeight(
 
-            inputWeight,
-
-            pressureAltitude,
-
-            temperature
+            weight
 
         );
 
-    if(!validation.valid){
+    if(
 
-        return{
+        !validation.valid
 
-            valid:false,
+    ){
 
-            message:validation.message,
+        showAFMLimit(
 
-            groundRoll:0,
+            validation.message
 
-            obstacle15m:0,
+        );
 
-            afmWeight:inputWeight
-
-        };
+        return;
 
     }
 
     /*
     ----------------------------------------------------
-    Ground Roll
+    AFM
 
     ----------------------------------------------------
     */
 
-    const groundRoll=
+    const afm=
 
-        interpolateWeight(
+        calculateAFM(
 
-            AFM.groundRoll,
+            weight,
 
-            inputWeight,
-
-            pressureAltitude,
+            densityAltitude,
 
             temperature
 
@@ -342,205 +837,156 @@ function calculateAFMPerformance(
 
     /*
     ----------------------------------------------------
-    Takeoff Distance 15 m
+    Configuration
 
     ----------------------------------------------------
     */
 
-    const obstacle15m=
+    const configuration={
 
-        interpolateWeight(
+        surface:
 
-            AFM.obstacle15m,
+            document.getElementById(
 
-            inputWeight,
+                "surface"
 
-            pressureAltitude,
+            ).value,
 
-            temperature
+        procedure:
 
-        );
+            document.getElementById(
 
-    /*
-    ----------------------------------------------------
-    Result
+                "procedure"
 
-    ----------------------------------------------------
-    */
+            ).value,
 
-    return{
+        slope:Number(
 
-        valid:true,
+            document.getElementById(
 
-        groundRoll:groundRoll,
+                "slope"
 
-        obstacle15m:obstacle15m,
+            ).value
 
-        afmWeight:inputWeight
+        ),
+
+        headwind:Number(
+
+            document.getElementById(
+
+                "headwind"
+
+            ).innerText.replace(
+
+                " kt",
+
+                ""
+
+            )
+
+        )||0,
+
+        tailwind:Number(
+
+            document.getElementById(
+
+                "tailwind"
+
+            )?.innerText.replace(
+
+                " kt",
+
+                ""
+
+            )
+
+        )||0
 
     };
 
-}
+    /*
+    ----------------------------------------------------
+    Final Performance
 
+    ----------------------------------------------------
+    */
 
+    const performance=
 
-/*
-========================================================
-Update AFM Output
+        calculateFinalPerformance(
 
-========================================================
-*/
+            afm,
 
-function updateAFMOutput(result){
-
-    if(!result.valid){
-
-        document.getElementById(
-
-            "groundRoll"
-
-        ).innerHTML="---";
-
-        document.getElementById(
-
-            "takeoffDistance"
-
-        ).innerHTML="---";
-
-        document.getElementById(
-
-            "finalDistance"
-
-        ).innerHTML="AFM LIMIT";
-
-        document.getElementById(
-
-            "calculationTree"
-
-        ).innerHTML=result.message;
-
-        return;
-
-    }
-
-    document.getElementById(
-
-        "groundRoll"
-
-    ).innerHTML=
-
-        roundMeter(
-
-            result.groundRoll
-
-        )+" m";
-
-    document.getElementById(
-
-        "takeoffDistance"
-
-    ).innerHTML=
-
-        roundMeter(
-
-            result.obstacle15m
-
-        )+" m";
-
-}
-/*
-========================================================
-Weight Validation
-
-Pilot MTOW
-
-1111 kg
-
-========================================================
-*/
-
-function validateWeightInput(){
-
-    const field=document.getElementById("weight");
-
-    if(!field){
-
-        return;
-
-    }
-
-    const weight=Number(field.value);
-
-    if(weight>PERFORMANCE_LIMITS.maxTakeoffWeight){
-
-        field.style.border="2px solid red";
-
-        field.style.background="#ffe6e6";
-
-        setStatus(
-
-            "AFM LIMIT<br>MTOW 1111 kg",
-
-            "danger"
+            configuration
 
         );
 
-    }
+    /*
+    ----------------------------------------------------
+    Safety
 
-    else{
+    ----------------------------------------------------
+    */
 
-        field.style.border="";
+    const safety=
 
-        field.style.background="";
+        calculateSafety(
 
-    }
+            runwayLength,
+
+            performance.finalRequired
+
+        );
+
+    /*
+    ----------------------------------------------------
+    Output
+
+    ----------------------------------------------------
+    */
+
+    updatePerformanceOutput(
+
+        performance,
+
+        safety
+
+    );
+
+    updateCalculationTree(
+
+        afm,
+
+        performance,
+
+        safety
+
+    );
 
 }
+
+
+
 /*
 ========================================================
-Weight Validation
 
-MTOW = 1111 kg
+Public API
 
 ========================================================
 */
 
-function validateWeightInput(){
+window.updatePerformance=
 
-    const input=document.getElementById("weight");
+    updatePerformance;
 
-    if(!input){
+window.calculateAFM=
 
-        return;
+    calculateAFM;
 
-    }
+window.calculateFinalPerformance=
 
-    const weight=Number(input.value);
+    calculateFinalPerformance;
 
-    input.classList.remove("warning");
+window.calculateSafety=
 
-    input.classList.remove("error");
-
-    if(weight>1111){
-
-        input.classList.add("error");
-
-        setStatus(
-
-            "AFM LIMIT<br>MTOW 1111 kg",
-
-            "danger"
-
-        );
-
-        return;
-
-    }
-
-    if(weight<1111){
-
-        input.classList.add("warning");
-
-    }
-
-}
+    calculateSafety;
