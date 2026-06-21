@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width,initial-scale=1.0,user-scalable=no">
+
+<title>TakeoffPro</title>
+
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="styles.css">
+
+<meta name="theme-color" content="#111827">
+
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+</head>
+
+<body>
+
+<div class="app">
+
+<header class="topbar">
+
+<div class="logo">
+
+<div class="logoCircle"></div>
+
+<div>
+
+<h1>TakeoffPro</h1>
+
+<p>Offline Performance Calculator</p>
+
+</div>
+
+</div>
+
+<div class="status">
+
+<div id="offlineIndicator">
+
+OFFLINE READY
+
+</div>
+
+</div>
+
+</header>
+
+<nav class="tabs">
+
+<button class="tab active"
+data-page="takeoff">
+
+Takeoff
+
+</button>
+
+<button class="tab"
+data-page="results">
+
+Result
+
+</button>
+
+<button class="tab"
+data-page="about">
+
+Info
+
+</button>
+
+</nav>
+
+<main>
+
+<section id="takeoff"
+class="page active">
+
+<div class="card">
+
+<h2>Aircraft Weight</h2>
+
+<select id="weight">
+
+<option value="1111">
+1111 kg (2450 lbs)
+</option>
+
+<option value="1134">
+1134 kg (2500 lbs)
+</option>
+
+<option value="1157" selected>
+1157 kg (2550 lbs)
+</option>
+
+</select>
+
+</div>
+
+<div class="card">
+
+<h2>Pressure Altitude</h2>
+
+<input
+type="range"
+id="altitude"
+
+min="0"
+max="10000"
+
+step="1000"
+
+value="0">
+
+<div class="value">
+
+<span id="altitudeValue">
+
+0 ft
+
+</span>
+
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>Temperature</h2>
+
+<input
+
+type="range"
+
+id="temperature"
+
+min="-20"
+
+max="50"
+
+step="10"
+
+value="20">
+
+<div class="value">
+
+<span id="temperatureValue">
+
+20°C
+
+</span>
+
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>Safety Factor</h2>
+
+<input
+
+type="range"
+
+id="factor"
+
+min="100"
+
+max="150"
+
+step="5"
+
+value="100">
+
+<div class="value">
+
+<span id="factorValue">
+
+100 %
+
+</span>
+
+</div>
+
+</div>
+
+<button id="calculate">
+
+CALCULATE
+
+</button>
+
+</section>
+
+<section id="results"
+
+class="page">
+
+<div class="resultCard">
+
+<h3>Ground Roll</h3>
+
+<div id="groundRoll"
+class="bigValue">
+
+--
+
+</div>
+
+</div>
+
+<div class="resultCard">
+
+<h3>Takeoff Distance 15 m Obstacle</h3>
+
+<div id="obstacleRoll"
+class="bigValue">
+
+--
+
+</div>
+
+</div>
+
+<div class="resultCard">
+
+<h3>Applied Safety Factor</h3>
+
+<div id="factorResult">
+
+100 %
+
+</div>
+
+</div>
+
+</section>
+
+<section id="about"
+
+class="page">
+
+<div class="card">
+
+<h2>TakeoffPro</h2>
+
+<p>
+
+Offline Progressive Web App
+
+for C172 R&S TAE125-02-114.
+
+</p>
+
+<p>
+
+Performance calculations use only
+
+the AFM tables supplied for
+
+1111 kg,
+
+1134 kg
+
+and
+
+1157 kg.
+
+</p>
+
+<p>
+
+Interpolation occurs only
+
+between the available values.
+
+No external performance data
+
+are used.
+
+</p>
+
+</div>
+
+</section>
+
+</main>
+
+<footer>
+
+TakeoffPro
+
+AFM Edition
+
+</footer>
+
+</div>
+
+<script src="afm-data.js"></script>
+
+<script src="interpolation.js"></script>
+
+<script src="app.js"></script>
+
+<script>
+
+if("serviceWorker" in navigator){
+
+navigator.serviceWorker.register("service-worker.js");
+
+}
+
+</script>
+
+</body>
+
+</html>
